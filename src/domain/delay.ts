@@ -11,6 +11,8 @@ export type DelayAssessment = {
   limitHours: number;
   /** Horas de trânsito, ou null se o pacote ainda não tem evento de início. */
   elapsedHours: number | null;
+  /** Mesmo tempo, sem arredondar. */
+  elapsedMs: number | null;
   startedAt: Date | null;
   deliveredAt: Date | null;
   /** Instante em que o limite foi ultrapassado, só quando há atraso. */
@@ -48,6 +50,7 @@ export function assessDelay(events: readonly DelayInput[], limitHours: number, n
       deliveredLate: false,
       limitHours,
       elapsedHours: null,
+      elapsedMs: null,
       startedAt: null,
       deliveredAt: null,
       lateSince: null,
@@ -64,6 +67,7 @@ export function assessDelay(events: readonly DelayInput[], limitHours: number, n
     deliveredLate: late && deliveredAt !== null,
     limitHours,
     elapsedHours: Math.round((elapsedMs / HOUR_MS) * 10) / 10,
+    elapsedMs,
     startedAt,
     deliveredAt,
     lateSince: late ? new Date(startedAt.getTime() + limitHours * HOUR_MS) : null,

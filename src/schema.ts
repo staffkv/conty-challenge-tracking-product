@@ -1,0 +1,18 @@
+import { z } from "zod";
+
+export const MAX_LIMIT_HOURS = 2160; // 90 dias
+
+export const registerSchema = z.strictObject({
+  tracking_code: z
+    .string()
+    .trim()
+    .regex(/^[A-Za-z0-9]{8,40}$/, "use de 8 a 40 letras ou números, sem espaços")
+    .transform((code) => code.toUpperCase()),
+  carrier: z
+    .string()
+    .trim()
+    .min(1, "informe a transportadora")
+    .transform((carrier) => carrier.toLowerCase()),
+  transit_limit_hours: z.number().int("use um número inteiro de horas").min(1).max(MAX_LIMIT_HOURS).optional(),
+  reference: z.string().trim().min(1).max(200).optional(),
+});

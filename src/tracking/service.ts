@@ -6,7 +6,7 @@ import { currentStatus } from "../domain/status.ts";
 import { ProviderError, type NormalizedStatus, type ProviderErrorKind, type TrackingProvider } from "../domain/types.ts";
 import type { Logger } from "../log.ts";
 import type { AlertStatus, DelayAlert, Repository, Shipment, StoredEvent } from "../storage/repository.ts";
-import { hours, isoSeconds } from "./format.ts";
+import { duration, hours, isoSeconds } from "./format.ts";
 import type { Notifier } from "./notifier.ts";
 
 export const DELAY_ALERT = "transito_acima_do_limite";
@@ -228,8 +228,8 @@ export class TrackingService {
       const lateSince = isoSeconds(a.lateSince);
       const fields = { status, late_since: lateSince, updated_at: now, resolution: null, stale: stale ? 1 : 0 };
       const message = a.deliveredAt
-        ? `Entregue com ${hours(a.elapsedHours ?? 0)} de trânsito, acima do limite de ${hours(a.limitHours)}.`
-        : `Em trânsito há ${hours(a.elapsedHours ?? 0)}, acima do limite de ${hours(a.limitHours)}.`;
+        ? `Entregue com ${duration(a.elapsedMs ?? 0)} de trânsito, acima do limite de ${hours(a.limitHours)}.`
+        : `Postado há ${duration(a.elapsedMs ?? 0)} e ainda sem entrega, acima do limite de ${hours(a.limitHours)}.`;
 
       if (!existing) {
         const alert: DelayAlert = { shipment_id: shipment.id, kind: DELAY_ALERT, opened_at: now, limit_hours: a.limitHours, ...fields };
@@ -245,7 +245,7 @@ export class TrackingService {
 
     if (existing && existing.status !== "desfeito") {
       const resolution = a.deliveredAt
-        ? `A entrega aconteceu em ${isoSeconds(a.deliveredAt)}, com ${hours(a.elapsedHours ?? 0)} de trânsito, dentro do limite de ${hours(a.limitHours)}. O evento de entrega chegou depois do alerta.`
+        ? `A entrega aconteceu em ${isoSeconds(a.deliveredAt)}, com ${duration(a.elapsedMs ?? 0)} de trânsito, dentro do limite de ${hours(a.limitHours)}. O evento de entrega chegou depois do alerta.`
         : `O tempo em trânsito voltou a ficar dentro do limite de ${hours(a.limitHours)}.`;
       repo.updateAlert(shipment.id, DELAY_ALERT, {
         status: "desfeito",

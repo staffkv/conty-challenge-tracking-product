@@ -19,6 +19,12 @@ describe("status a partir do histórico", () => {
     expect(currentStatus(arrival)).toBe("saiu_para_entrega");
   });
 
+  it("evento mais novo com progresso menor também não faz o status voltar", () => {
+    // Ex.: tentativa de entrega frustrada registrada como "em trânsito"; a volta fica só no histórico.
+    const history = [ev("saiu_para_entrega", "2026-10-04T07:00:00Z"), ev("em_transito", "2026-10-04T19:00:00Z")];
+    expect(currentStatus(history)).toBe("saiu_para_entrega");
+  });
+
   it("dá o mesmo status em todas as 720 ordens de chegada de um histórico de 6 eventos", () => {
     const history = [
       ev("postado", "2026-10-01T10:00:00Z"),

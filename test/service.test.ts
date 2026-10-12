@@ -111,6 +111,7 @@ describe.each(Object.entries(PROVIDERS))("serviço de rastreio com %s", (_name, 
       await service.checkDelays();
       expect(notifications.map((n) => n.kind)).toEqual(["atraso_aberto"]);
       expect(notifications[0]).toMatchObject({ shipment_id: id, late_since: "2026-10-04T13:00:00Z", limit_hours: 72 });
+      expect(notifications[0]?.message).toBe("Postado há 72 h e 1 min e ainda sem entrega, acima do limite de 72 h.");
 
       const view = await service.refresh(id);
       expect(view?.delay).toMatchObject({ late: true, alert: "ativo" });
