@@ -6,9 +6,9 @@ export type DelayNotification = {
   tracking_code: string;
   carrier: string;
   reference: string | null;
-  limit_hours: number;
+  limit_days: number;
   late_since: string;
-  elapsed_hours: number | null;
+  elapsed_days: number | null;
   message: string;
 };
 

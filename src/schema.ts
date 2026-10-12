@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const MAX_LIMIT_HOURS = 2160; // 90 dias
+export const MAX_LIMIT_DAYS = 90;
 
 export const registerSchema = z.strictObject({
   tracking_code: z
@@ -13,6 +13,6 @@ export const registerSchema = z.strictObject({
     .trim()
     .min(1, "informe a transportadora")
     .transform((carrier) => carrier.toLowerCase()),
-  transit_limit_hours: z.number().int("use um número inteiro de horas").min(1).max(MAX_LIMIT_HOURS).optional(),
+  transit_limit_days: z.number().int("use um número inteiro de dias").min(1).max(MAX_LIMIT_DAYS).optional(),
   reference: z.string().trim().min(1).max(200).optional(),
 });

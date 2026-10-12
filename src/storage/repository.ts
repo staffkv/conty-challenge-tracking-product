@@ -5,7 +5,7 @@ export type Shipment = {
   id: string;
   tracking_code: string;
   carrier: string;
-  transit_limit_hours: number | null;
+  transit_limit_days: number | null;
   reference: string | null;
   created_at: string;
   last_synced_at: string | null;
@@ -28,7 +28,7 @@ export type DelayAlert = {
   kind: string;
   status: AlertStatus;
   late_since: string;
-  limit_hours: number;
+  limit_days: number;
   opened_at: string;
   updated_at: string;
   resolution: string | null;
@@ -64,10 +64,10 @@ export class Repository {
   insertShipment(s: Shipment): boolean {
     const result = this.db
       .prepare(
-        `INSERT INTO shipments (id, tracking_code, carrier, transit_limit_hours, reference, created_at, last_synced_at)
+        `INSERT INTO shipments (id, tracking_code, carrier, transit_limit_days, reference, created_at, last_synced_at)
          VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT (carrier, tracking_code) DO NOTHING`,
       )
-      .run(s.id, s.tracking_code, s.carrier, s.transit_limit_hours, s.reference, s.created_at, s.last_synced_at);
+      .run(s.id, s.tracking_code, s.carrier, s.transit_limit_days, s.reference, s.created_at, s.last_synced_at);
     return result.changes > 0;
   }
 
@@ -120,10 +120,10 @@ export class Repository {
   insertAlert(a: DelayAlert): boolean {
     const result = this.db
       .prepare(
-        `INSERT INTO delay_alerts (shipment_id, kind, status, late_since, limit_hours, opened_at, updated_at, resolution, stale)
+        `INSERT INTO delay_alerts (shipment_id, kind, status, late_since, limit_days, opened_at, updated_at, resolution, stale)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (shipment_id, kind) DO NOTHING`,
       )
-      .run(a.shipment_id, a.kind, a.status, a.late_since, a.limit_hours, a.opened_at, a.updated_at, a.resolution, a.stale);
+      .run(a.shipment_id, a.kind, a.status, a.late_since, a.limit_days, a.opened_at, a.updated_at, a.resolution, a.stale);
     return result.changes > 0;
   }
 

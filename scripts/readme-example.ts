@@ -20,7 +20,7 @@ export async function renderExampleBlock(): Promise<string> {
     provider: new RastreioFakeClient({ baseUrl: "http://agregador.exemplo", fetch: mock.fetch }),
     clock: new FixedClock("2026-10-03T14:00:00Z"),
     notifier: { notify: () => {} },
-    defaultLimitHours: 168,
+    defaultLimitDays: 7,
     newId: () => "shp_exemplo",
   });
 

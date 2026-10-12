@@ -11,7 +11,7 @@ const OEC: Spec = { at: "2026-10-03T10:15:00Z", raw: "OEC", status: "saiu_para_e
 const BDE: Spec = { at: "2026-10-03T17:00:00Z", raw: "BDE", status: "entregue", location: "Campinas - SP" };
 
 describe.each(Object.entries(PROVIDERS))("serviço de rastreio com %s", (_name, makeHarness) => {
-  async function setup(options?: { now?: string; defaultLimitHours?: number }) {
+  async function setup(options?: { now?: string; defaultLimitDays?: number }) {
     const harness = makeHarness();
     const ctx = buildService(harness, options);
     const { view } = await ctx.service.register({ trackingCode: CODE, carrier: "correios" });
@@ -85,7 +85,8 @@ describe.each(Object.entries(PROVIDERS))("serviço de rastreio com %s", (_name, 
       const view = await service.refresh(id);
       expect(view?.status).toBeNull();
       expect(view?.status_reason).toMatch(/1 evento com status que não conhecemos/);
-      expect(view?.delay.elapsed_hours).toBeNull();
+      expect(view?.delay.elapsed_days).toBeNull();
+      expect(view?.delay.summary).toMatch(/não começou/);
     });
 
     it("entregue ao remetente é exceção, não entrega", async () => {
@@ -110,8 +111,8 @@ describe.each(Object.entries(PROVIDERS))("serviço de rastreio com %s", (_name, 
       await service.checkDelays();
       await service.checkDelays();
       expect(notifications.map((n) => n.kind)).toEqual(["atraso_aberto"]);
-      expect(notifications[0]).toMatchObject({ shipment_id: id, late_since: "2026-10-04T13:00:00Z", limit_hours: 72 });
-      expect(notifications[0]?.message).toBe("Postado há 72 h e 1 min e ainda sem entrega, acima do limite de 72 h.");
+      expect(notifications[0]).toMatchObject({ shipment_id: id, late_since: "2026-10-04T13:00:00Z", limit_days: 3 });
+      expect(notifications[0]?.message).toBe("Postado há 3 dias e 1 min e ainda sem entrega; passou do limite de 3 dias em 04/10/2026 às 10:00.");
 
       const view = await service.refresh(id);
       expect(view?.delay).toMatchObject({ late: true, alert: "ativo" });
@@ -126,9 +127,9 @@ describe.each(Object.entries(PROVIDERS))("serviço de rastreio com %s", (_name, 
       // A entrega foi em 03/10, mas o evento só chegou agora.
       harness.publish(CODE, [BDE]);
       const view = await service.refresh(id);
-      expect(view?.delay).toMatchObject({ late: false, alert: "desfeito", elapsed_hours: 52 });
+      expect(view?.delay).toMatchObject({ late: false, alert: "desfeito", elapsed_days: 2.2 });
       expect(notifications.map((n) => n.kind)).toEqual(["atraso_aberto", "atraso_desfeito"]);
-      expect(service.listAlerts()[0]?.resolution).toMatch(/dentro do limite de 72 h/);
+      expect(service.listAlerts()[0]?.resolution).toMatch(/A entrega aconteceu em 03\/10\/2026 às 14:00, com 2 dias e 4 h de trânsito, dentro do limite de 3 dias/);
 
       await service.checkDelays();
       expect(notifications).toHaveLength(2);
@@ -140,7 +141,7 @@ describe.each(Object.entries(PROVIDERS))("serviço de rastreio com %s", (_name, 
       clock.set("2026-11-30T00:00:00Z");
       const view = await service.refresh(id);
       await service.checkDelays();
-      expect(view?.delay).toMatchObject({ late: false, elapsed_hours: 52 });
+      expect(view?.delay).toMatchObject({ late: false, elapsed_days: 2.2, summary: "Entregue em 2 dias e 4 h, dentro do limite de 3 dias." });
       expect(notifications).toHaveLength(0);
     });
 
@@ -149,18 +150,18 @@ describe.each(Object.entries(PROVIDERS))("serviço de rastreio com %s", (_name, 
       clock.set("2026-10-02T13:00:00Z");
       harness.publish(CODE, [PO]);
       const view = await service.refresh(id);
-      expect(view?.delay).toMatchObject({ late: false, elapsed_hours: 24 });
+      expect(view?.delay).toMatchObject({ late: false, elapsed_days: 1, summary: "Postado há 1 dia; o limite é de 3 dias." });
       expect(notifications).toHaveLength(0);
     });
 
     it("respeita o limite próprio da encomenda", async () => {
       const harness = makeHarness();
       const { service, clock } = buildService(harness);
-      const { view } = await service.register({ trackingCode: CODE, carrier: "correios", transitLimitHours: 24 });
+      const { view } = await service.register({ trackingCode: CODE, carrier: "correios", transitLimitDays: 1 });
       harness.publish(CODE, [PO]);
       clock.set("2026-10-02T14:00:00Z");
       const after = await service.refresh(view.id);
-      expect(after?.delay).toMatchObject({ late: true, limit_hours: 24, late_since: "2026-10-02T13:00:00Z" });
+      expect(after?.delay).toMatchObject({ late: true, limit_days: 1, late_since: "2026-10-02T13:00:00Z" });
     });
   });
 

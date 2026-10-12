@@ -3,7 +3,7 @@ export type Config = {
   dbPath: string;
   aggregatorUrl: string;
   aggregatorTimeoutMs: number;
-  transitLimitHours: number;
+  transitLimitDays: number;
   delayCheckIntervalMs: number;
 };
 
@@ -21,7 +21,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): Config {
     dbPath: env.DB_PATH || "data/rastreio.sqlite",
     aggregatorUrl: env.AGGREGATOR_URL || "http://127.0.0.1:3005",
     aggregatorTimeoutMs: positiveInt(env, "AGGREGATOR_TIMEOUT_MS", 5000),
-    transitLimitHours: positiveInt(env, "TRANSIT_LIMIT_HOURS", 168),
+    transitLimitDays: positiveInt(env, "TRANSIT_LIMIT_DAYS", 7),
     delayCheckIntervalMs: positiveInt(env, "DELAY_CHECK_INTERVAL_MS", 15 * 60 * 1000),
   };
 }

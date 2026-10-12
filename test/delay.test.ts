@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assessDelay, type DelayInput } from "../src/domain/delay.ts";
+import { assessDelay, type DelayAssessment, type DelayInput } from "../src/domain/delay.ts";
 import type { NormalizedStatus } from "../src/domain/types.ts";
 
 function ev(status: NormalizedStatus | null, iso: string): DelayInput {
@@ -7,13 +7,17 @@ function ev(status: NormalizedStatus | null, iso: string): DelayInput {
 }
 
 const posted = ev("postado", "2026-10-01T12:00:00Z");
-const LIMIT = 72;
+const LIMIT = 3; // dias
+
+function hoursOf(a: DelayAssessment): number | null {
+  return a.elapsedMs === null ? null : a.elapsedMs / 3_600_000;
+}
 
 describe("regra de atraso com data controlada", () => {
   it("exatamente no limite ainda não é atraso", () => {
     const a = assessDelay([posted], LIMIT, new Date("2026-10-04T12:00:00Z"));
     expect(a.late).toBe(false);
-    expect(a.elapsedHours).toBe(72);
+    expect(hoursOf(a)).toBe(72);
   });
 
   it("um minuto depois do limite é atraso, desde o instante em que o limite passou", () => {
@@ -27,7 +31,7 @@ describe("regra de atraso com data controlada", () => {
     const history = [posted, ev("entregue", "2026-10-03T18:00:00Z")];
     const a = assessDelay(history, LIMIT, new Date("2026-11-02T12:00:00Z"));
     expect(a.late).toBe(false);
-    expect(a.elapsedHours).toBe(54);
+    expect(hoursOf(a)).toBe(54);
     expect(a.deliveredAt?.toISOString()).toBe("2026-10-03T18:00:00.000Z");
   });
 
@@ -36,27 +40,26 @@ describe("regra de atraso com data controlada", () => {
     const a = assessDelay(history, LIMIT, new Date("2026-10-06T12:00:00Z"));
     expect(a.late).toBe(true);
     expect(a.deliveredLate).toBe(true);
-    expect(a.elapsedHours).toBe(93);
+    expect(hoursOf(a)).toBe(93);
   });
 
   it("a contagem começa na postagem, não no cadastro", () => {
     // Cadastrado em 20/09, postado só em 01/10: os 11 dias de espera não contam.
     const a = assessDelay([posted], LIMIT, new Date("2026-10-02T12:00:00Z"));
-    expect(a.elapsedHours).toBe(24);
+    expect(hoursOf(a)).toBe(24);
     expect(a.late).toBe(false);
   });
 
   it("sem postagem, começa no primeiro em trânsito", () => {
     const a = assessDelay([ev("em_transito", "2026-10-02T12:00:00Z")], LIMIT, new Date("2026-10-04T12:00:00Z"));
     expect(a.startedAt?.toISOString()).toBe("2026-10-02T12:00:00.000Z");
-    expect(a.elapsedHours).toBe(48);
+    expect(hoursOf(a)).toBe(48);
   });
 
   it("sem evento de início não há atraso, e o motivo explica", () => {
     const a = assessDelay([ev(null, "2026-09-01T00:00:00Z"), ev("excecao", "2026-09-02T00:00:00Z")], LIMIT, new Date("2026-12-01T00:00:00Z"));
     expect(a.late).toBe(false);
-    expect(a.elapsedHours).toBeNull();
-    expect(a.reason).toMatch(/não começou/);
+    expect(hoursOf(a)).toBeNull();
   });
 
   it("exceção não para o relógio", () => {

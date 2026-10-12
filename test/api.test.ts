@@ -30,11 +30,11 @@ describe("API", () => {
   });
 
   it("cadastra com 201 e devolve a mesma encomenda com 200 na repetição", async () => {
-    const first = await post({ tracking_code: "qb123456789br", carrier: "Correios", transit_limit_hours: 120, reference: "campanha-42" });
+    const first = await post({ tracking_code: "qb123456789br", carrier: "Correios", transit_limit_days: 5, reference: "campanha-42" });
     expect(first.status).toBe(201);
     const created = await first.json();
     expect(created).toMatchObject({ tracking_code: CODE, carrier: "correios", reference: "campanha-42", status: null });
-    expect(created.delay.limit_hours).toBe(120);
+    expect(created.delay.limit_days).toBe(5);
 
     const again = await post({ tracking_code: CODE, carrier: "correios" });
     expect(again.status).toBe(200);
@@ -53,7 +53,7 @@ describe("API", () => {
       status: "postado",
       posted_at: "2026-10-01T13:00:00Z",
       unmapped_events: 1,
-      delay: { late: false, elapsed_hours: 47, limit_hours: 72 },
+      delay: { late: false, elapsed_days: 2, limit_days: 3, summary: "Postado há 1 dia e 23 h; o limite é de 3 dias." },
       stale: false,
     });
   });
@@ -63,8 +63,8 @@ describe("API", () => {
     ["código curto", { tracking_code: "AB1", carrier: "correios" }, undefined, "payload_invalido", "tracking_code"],
     ["código com espaço", { tracking_code: "QB 123456789BR", carrier: "correios" }, undefined, "payload_invalido", "tracking_code"],
     ["sem transportadora", { tracking_code: CODE }, undefined, "payload_invalido", "carrier"],
-    ["limite fracionado", { tracking_code: CODE, carrier: "correios", transit_limit_hours: 1.5 }, undefined, "payload_invalido", "transit_limit_hours"],
-    ["limite zero", { tracking_code: CODE, carrier: "correios", transit_limit_hours: 0 }, undefined, "payload_invalido", "transit_limit_hours"],
+    ["limite fracionado", { tracking_code: CODE, carrier: "correios", transit_limit_days: 1.5 }, undefined, "payload_invalido", "transit_limit_days"],
+    ["limite zero", { tracking_code: CODE, carrier: "correios", transit_limit_days: 0 }, undefined, "payload_invalido", "transit_limit_days"],
     ["campo extra", { tracking_code: CODE, carrier: "correios", status: "entregue" }, undefined, "payload_invalido", "status"],
   ])("recusa %s com 400 e nome do campo", async (_case, body, raw, code, field) => {
     const res = await post(body, raw);

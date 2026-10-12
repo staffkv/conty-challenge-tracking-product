@@ -66,7 +66,7 @@ export const PROVIDERS: Record<string, () => ProviderHarness> = {
   },
 };
 
-export function buildService(harness: ProviderHarness, options: { now?: string; defaultLimitHours?: number } = {}) {
+export function buildService(harness: ProviderHarness, options: { now?: string; defaultLimitDays?: number } = {}) {
   const clock = new FixedClock(options.now ?? "2026-10-01T00:00:00Z");
   const notifications: DelayNotification[] = [];
   const repo = new Repository(openDatabase(":memory:"));
@@ -75,7 +75,7 @@ export function buildService(harness: ProviderHarness, options: { now?: string; 
     provider: harness.provider,
     clock,
     notifier: { notify: (n) => notifications.push(n) },
-    defaultLimitHours: options.defaultLimitHours ?? 72,
+    defaultLimitDays: options.defaultLimitDays ?? 3,
   });
   return { service, clock, notifications, repo };
 }

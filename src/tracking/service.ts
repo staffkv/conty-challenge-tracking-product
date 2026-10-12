@@ -6,7 +6,7 @@ import { currentStatus } from "../domain/status.ts";
 import { ProviderError, type NormalizedStatus, type ProviderErrorKind, type TrackingProvider } from "../domain/types.ts";
 import type { Logger } from "../log.ts";
 import type { AlertStatus, DelayAlert, Repository, Shipment, StoredEvent } from "../storage/repository.ts";
-import { duration, hours, isoSeconds } from "./format.ts";
+import { brasilia, days, delaySummary, duration, isoSeconds, toDays } from "./format.ts";
 import type { Notifier } from "./notifier.ts";
 
 export const DELAY_ALERT = "transito_acima_do_limite";
@@ -16,7 +16,7 @@ export type TrackingDeps = {
   provider: TrackingProvider;
   clock: Clock;
   notifier: Notifier;
-  defaultLimitHours: number;
+  defaultLimitDays: number;
   log?: Logger;
   newId?: () => string;
 };
@@ -24,7 +24,7 @@ export type TrackingDeps = {
 export type RegisterInput = {
   trackingCode: string;
   carrier: string;
-  transitLimitHours?: number;
+  transitLimitDays?: number;
   reference?: string;
 };
 
@@ -56,10 +56,11 @@ export type ShipmentView = {
   delay: {
     late: boolean;
     delivered_late: boolean;
-    limit_hours: number;
-    elapsed_hours: number | null;
+    limit_days: number;
+    elapsed_days: number | null;
     late_since: string | null;
-    reason: string | null;
+    /** Frase pronta para mostrar a quem acompanha a campanha. */
+    summary: string;
     alert: AlertStatus | null;
   };
   unmapped_events: number;
@@ -92,7 +93,7 @@ export class TrackingService {
       id: this.newId(),
       tracking_code: input.trackingCode,
       carrier: input.carrier,
-      transit_limit_hours: input.transitLimitHours ?? null,
+      transit_limit_days: input.transitLimitDays ?? null,
       reference: input.reference ?? null,
       created_at: isoSeconds(clock.now()),
       last_synced_at: null,
@@ -131,7 +132,7 @@ export class TrackingService {
       reference: a.reference,
       kind: a.kind,
       status: a.status,
-      limit_hours: a.limit_hours,
+      limit_days: a.limit_days,
       late_since: a.late_since,
       opened_at: a.opened_at,
       updated_at: a.updated_at,
@@ -196,10 +197,10 @@ export class TrackingService {
       delay: {
         late: a.late,
         delivered_late: a.deliveredLate,
-        limit_hours: a.limitHours,
-        elapsed_hours: a.elapsedHours,
+        limit_days: a.limitDays,
+        elapsed_days: a.elapsedMs === null ? null : toDays(a.elapsedMs),
         late_since: a.lateSince ? isoSeconds(a.lateSince) : null,
-        reason: a.reason,
+        summary: delaySummary(a),
         alert: alert?.status ?? null,
       },
       unmapped_events: unmapped,
@@ -211,7 +212,7 @@ export class TrackingService {
   }
 
   private limitFor(shipment: Shipment): number {
-    return shipment.transit_limit_hours ?? this.deps.defaultLimitHours;
+    return shipment.transit_limit_days ?? this.deps.defaultLimitDays;
   }
 
   /**
@@ -227,12 +228,10 @@ export class TrackingService {
       const status: AlertStatus = a.deliveredAt ? "entregue_com_atraso" : "ativo";
       const lateSince = isoSeconds(a.lateSince);
       const fields = { status, late_since: lateSince, updated_at: now, resolution: null, stale: stale ? 1 : 0 };
-      const message = a.deliveredAt
-        ? `Entregue com ${duration(a.elapsedMs ?? 0)} de trânsito, acima do limite de ${hours(a.limitHours)}.`
-        : `Postado há ${duration(a.elapsedMs ?? 0)} e ainda sem entrega, acima do limite de ${hours(a.limitHours)}.`;
+      const message = delaySummary(a);
 
       if (!existing) {
-        const alert: DelayAlert = { shipment_id: shipment.id, kind: DELAY_ALERT, opened_at: now, limit_hours: a.limitHours, ...fields };
+        const alert: DelayAlert = { shipment_id: shipment.id, kind: DELAY_ALERT, opened_at: now, limit_days: a.limitDays, ...fields };
         if (repo.insertAlert(alert)) this.notify(shipment, "atraso_aberto", a, lateSince, message);
         return;
       }
@@ -245,8 +244,8 @@ export class TrackingService {
 
     if (existing && existing.status !== "desfeito") {
       const resolution = a.deliveredAt
-        ? `A entrega aconteceu em ${isoSeconds(a.deliveredAt)}, com ${duration(a.elapsedMs ?? 0)} de trânsito, dentro do limite de ${hours(a.limitHours)}. O evento de entrega chegou depois do alerta.`
-        : `O tempo em trânsito voltou a ficar dentro do limite de ${hours(a.limitHours)}.`;
+        ? `A entrega aconteceu em ${brasilia(a.deliveredAt)}, com ${duration(a.elapsedMs ?? 0)} de trânsito, dentro do limite de ${days(a.limitDays)}. O evento de entrega chegou depois do alerta.`
+        : `O tempo em trânsito voltou a ficar dentro do limite de ${days(a.limitDays)}.`;
       repo.updateAlert(shipment.id, DELAY_ALERT, {
         status: "desfeito",
         late_since: existing.late_since,
@@ -260,9 +259,9 @@ export class TrackingService {
         tracking_code: shipment.tracking_code,
         carrier: shipment.carrier,
         reference: shipment.reference,
-        limit_hours: a.limitHours,
+        limit_days: a.limitDays,
         late_since: existing.late_since,
-        elapsed_hours: a.elapsedHours,
+        elapsed_days: a.elapsedMs === null ? null : toDays(a.elapsedMs),
         message: resolution,
       });
     }
@@ -275,9 +274,9 @@ export class TrackingService {
       tracking_code: shipment.tracking_code,
       carrier: shipment.carrier,
       reference: shipment.reference,
-      limit_hours: a.limitHours,
+      limit_days: a.limitDays,
       late_since: lateSince,
-      elapsed_hours: a.elapsedHours,
+      elapsed_days: a.elapsedMs === null ? null : toDays(a.elapsedMs),
       message,
     });
   }

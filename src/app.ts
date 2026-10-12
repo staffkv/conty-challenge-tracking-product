@@ -36,7 +36,7 @@ export function createApp(service: TrackingService): Hono {
         const { created, view } = await service.register({
           trackingCode: parsed.data.tracking_code,
           carrier: parsed.data.carrier,
-          transitLimitHours: parsed.data.transit_limit_hours,
+          transitLimitDays: parsed.data.transit_limit_days,
           reference: parsed.data.reference,
         });
         return c.json(view, created ? 201 : 200);

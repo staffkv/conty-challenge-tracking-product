@@ -20,7 +20,7 @@ export function compose(config: Config) {
     provider,
     clock: systemClock,
     notifier: logNotifier(),
-    defaultLimitHours: config.transitLimitHours,
+    defaultLimitDays: config.transitLimitDays,
     log: jsonLogger,
   });
   return { app: createApp(service), service };

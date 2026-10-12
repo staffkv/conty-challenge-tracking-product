@@ -49,7 +49,7 @@ As datas dos cenários são fixas (setembro e outubro de 2026). Com o relógio d
 | `DB_PATH` | `data/rastreio.sqlite` | Banco SQLite |
 | `AGGREGATOR_URL` | `http://127.0.0.1:3005` | URL do agregador |
 | `AGGREGATOR_TIMEOUT_MS` | `5000` | Timeout de cada chamada ao agregador |
-| `TRANSIT_LIMIT_HOURS` | `168` | Limite padrão de trânsito, em horas corridas |
+| `TRANSIT_LIMIT_DAYS` | `7` | Limite padrão de trânsito, em dias corridos |
 | `DELAY_CHECK_INTERVAL_MS` | `900000` | Intervalo do monitor de atraso |
 
 ## Contrato da API
@@ -64,12 +64,12 @@ As datas dos cenários são fixas (setembro e outubro de 2026). Com o relógio d
 Corpo do cadastro:
 
 ```json
-{ "tracking_code": "QB123456789BR", "carrier": "correios", "transit_limit_hours": 120, "reference": "campanha-42/criador-7" }
+{ "tracking_code": "QB123456789BR", "carrier": "correios", "transit_limit_days": 5, "reference": "campanha-42/criador-7" }
 ```
 
 - `tracking_code`: de 8 a 40 letras ou números. É guardado em maiúsculas.
 - `carrier`: `correios`, `jadlog` ou `loggi`.
-- `transit_limit_hours` (opcional): inteiro de 1 a 2.160. Sem ele, vale `TRANSIT_LIMIT_HOURS`.
+- `transit_limit_days` (opcional): inteiro de 1 a 90 dias. Sem ele, vale `TRANSIT_LIMIT_DAYS`.
 - `reference` (opcional): texto livre para ligar a encomenda à campanha.
 - Campos extras são recusados.
 
@@ -102,6 +102,19 @@ A tradução fica no adaptador do agregador (`src/providers/rastreio-fake/status
 | `excecao` | `BDI-ausente`, `BDE-remetente`, `FC-extravio` | `INSUCESSO`, `DEVOLVIDO` | `delivery_failed`, `returned_to_sender` |
 
 Os dialetos são fictícios, inspirados no estilo de cada transportadora.
+
+### Prazo na resposta
+
+O bloco `delay` traz o prazo em dias:
+
+- `limit_days`: o limite aplicado;
+- `elapsed_days`: o tempo em trânsito, com uma casa decimal;
+- `late_since`: o instante em UTC em que o limite passou;
+- `summary`: uma frase pronta para mostrar a quem acompanha a campanha, com datas no horário de Brasília. Exemplos:
+  - "Postado há 2 dias e 1 h; o limite é de 7 dias."
+  - "Postado há 10 dias e 23 h e ainda sem entrega; passou do limite de 7 dias em 08/10/2026 às 10:02."
+  - "Entregue em 2 dias e 4 h, dentro do limite de 7 dias."
+  - "Ainda sem postagem reconhecida; a contagem do prazo de 7 dias não começou."
 
 ## Exemplo: payload bruto → status normalizado
 
@@ -186,10 +199,10 @@ Resposta de `POST /v1/shipments` com o relógio parado em 03/10/2026 14:00 UTC:
   "delay": {
     "late": false,
     "delivered_late": false,
-    "limit_hours": 168,
-    "elapsed_hours": 49,
+    "limit_days": 7,
+    "elapsed_days": 2,
     "late_since": null,
-    "reason": null,
+    "summary": "Postado há 2 dias e 58 min; o limite é de 7 dias.",
     "alert": null
   },
   "unmapped_events": 1,
@@ -264,12 +277,12 @@ O resultado não depende da ordem de chegada. Um teste confirma o mesmo status e
 
 - **Início:** o primeiro evento de progresso reconhecido, normalmente `postado`. Se a transportadora pular a postagem, vale o primeiro `em_transito`.
 - **Fim:** o horário da entrega informado pela transportadora. Sem entrega, o "agora".
-- **Atrasado:** tempo decorrido **estritamente maior** que o limite. No limite exato, ainda não está atrasado.
+- **Atrasado:** tempo decorrido **estritamente maior** que o limite. No limite exato, ainda não está atrasado. O cálculo é feito em milissegundos; dias só aparecem na exibição.
 - **Exceção não para o relógio.** Pacote devolvido ou parado continua contando, e o aviso vale porque o produto não chegou.
 
 O que impede a entrega normal de virar atraso:
 
-1. Pacote entregue é medido até o horário da entrega, não até a consulta. Entregue em 52 h e consultado um mês depois continua com 52 h.
+1. Pacote entregue é medido até o horário da entrega, não até a consulta. Entregue em 2 dias e 4 h e consultado um mês depois continua com 2 dias e 4 h.
 2. A contagem começa na postagem, não no cadastro. O código pode ser cadastrado dias antes do envio, e essa espera não conta.
 3. Os horários viram instantes UTC no adaptador, então `-03:00` contra UTC não cria horas de atraso fantasma.
 4. Se o aviso já saiu e depois chega um `entregue` com horário dentro do limite (o evento atrasou no agregador), o recálculo desfaz o aviso com o motivo e envia um aviso de `atraso_desfeito`.
@@ -295,7 +308,7 @@ Garantias:
 
 - **Volta legítima de status.** Se a transportadora registrar "em trânsito" depois de "saiu para entrega" com horário mais novo, o status mostrado continua `saiu_para_entrega`. A volta aparece só no histórico.
 - **Eventos idênticos.** Dois eventos iguais no mesmo segundo e no mesmo local viram um. Isso não muda status nem prazo.
-- **Horas corridas.** O limite não considera dias úteis nem feriados.
+- **Dias corridos.** O limite não considera dias úteis nem feriados.
 - **Horário sem fuso** é tratado como `-03:00` (horário de Brasília, sem horário de verão desde 2019).
 - **Monitor depende do agregador.** Com o agregador fora do ar, ele avalia com o histórico guardado e marca o aviso com `stale`.
 - **Status desconhecido** não gera alerta próprio, só a contagem `unmapped_events`. Quem cuida das tabelas precisa olhar essa contagem.
@@ -318,7 +331,8 @@ Ferramenta: Claude Code, modelo Claude Opus 5.5.
 - **Correções que vieram dessa verificação:**
   - faltava teste para evento mais novo com progresso menor;
   - o aviso dizia "em trânsito" para pacote devolvido;
-  - o arredondamento mostrava "72 h, acima do limite de 72 h".
+  - o arredondamento mostrava "72 h, acima do limite de 72 h";
+  - prazos e tempos apareciam em horas ("263,8 h"); passaram a ser mostrados em dias, horas e minutos.
 
 ### O que eu revisei
 
