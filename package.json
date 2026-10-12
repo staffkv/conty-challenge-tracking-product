@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
+    "mock-aggregator": "tsx mock-aggregator/server.ts",
+    "example": "tsx scripts/example.ts",
     "test": "NODE_OPTIONS='--disable-warning=ExperimentalWarning' vitest run",
     "typecheck": "tsc --noEmit"
   },
@@ -20,6 +22,6 @@
     "vitest": "^3.2.4"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=22.13"
   }
 }
