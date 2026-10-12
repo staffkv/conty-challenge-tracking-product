@@ -1,7 +1,9 @@
+import { Scalar } from "@scalar/hono-api-reference";
 import { Hono, type Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { ProviderError } from "./domain/types.ts";
+import { openApiDocument } from "./openapi.ts";
 import { registerSchema } from "./schema.ts";
 import { UnsupportedCarrierError, type TrackingService } from "./tracking/service.ts";
 
@@ -13,6 +15,8 @@ export function createApp(service: TrackingService): Hono {
   const app = new Hono();
 
   app.get("/health", (c) => c.json({ ok: true }));
+  app.get("/openapi.json", (c) => c.json(openApiDocument));
+  app.get("/docs", Scalar({ url: "/openapi.json", pageTitle: "Rastreio do produto físico" }));
 
   app.post(
     "/v1/shipments",

@@ -8,6 +8,7 @@ const { app, service } = compose(config);
 
 serve({ fetch: app.fetch, port: config.port }, (info) => {
   console.log(`rastreio em http://127.0.0.1:${info.port} (agregador: ${config.aggregatorUrl})`);
+  console.log(`documentação em http://127.0.0.1:${info.port}/docs`);
 });
 
 let running = false;

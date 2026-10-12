@@ -21,6 +21,10 @@ npm run mock-aggregator   # http://127.0.0.1:3005
 npm run dev               # http://127.0.0.1:3004
 ```
 
+Com o serviço no ar, a documentação interativa fica em **http://127.0.0.1:3004/docs** (Scalar). Ela lista todos os endpoints com campos, exemplos e erros, e permite mandar requisições pelo navegador; os exemplos do cadastro já trazem os quatro cenários abaixo. A especificação OpenAPI 3.1 fica em `/openapi.json`, e `test/openapi.test.ts` falha se ela divergir das rotas ou das respostas reais.
+
+Pelo terminal:
+
 ```bash
 curl -s -X POST localhost:3004/v1/shipments \
   -H 'content-type: application/json' \
@@ -60,6 +64,8 @@ As datas dos cenários são fixas (setembro e outubro de 2026). Com o relógio d
 | `POST /v1/shipments` | Cadastra no agregador e grava. Devolve 201; o mesmo código e transportadora devolvem a encomenda existente com 200 |
 | `GET /v1/shipments/:id` | Sincroniza com o agregador, grava só eventos novos e devolve o estado |
 | `GET /v1/alerts` | Avisos de atraso, abertos e desfeitos |
+| `GET /docs` | Documentação interativa (Scalar) |
+| `GET /openapi.json` | Especificação OpenAPI 3.1 |
 
 Corpo do cadastro:
 
@@ -321,7 +327,7 @@ Garantias:
 Ferramenta: Claude Code, modelo Claude Opus 5.5.
 
 - **Plano:** análise do enunciado, plano de implementação e escolhas de projeto (regra de status por histórico, chave de evento por conteúdo, início do atraso na postagem).
-- **Código:** todo o código de `src/`, o agregador fictício em `mock-aggregator/` e o script do exemplo.
+- **Código:** todo o código de `src/`, o agregador fictício em `mock-aggregator/`, o script do exemplo e a especificação OpenAPI exibida em `/docs`.
 - **Testes:** todos os testes.
 - **README:** este texto.
 - **Verificação feita pela IA:**
