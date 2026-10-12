@@ -81,11 +81,24 @@ export class TrackingService {
     this.newId = deps.newId ?? (() => `shp_${randomUUID()}`);
   }
 
-  /** Cadastra no agregador e grava. Mesmo código e transportadora devolvem o existente. */
+  /**
+   * Cadastra no agregador e grava. Mesmo código e transportadora devolvem o
+   * existente, sem duplicar; o cadastro no agregador é refeito (ele é idempotente)
+   * para o caso de o agregador ter perdido o código, e a encomenda é sincronizada.
+   */
   async register(input: RegisterInput): Promise<{ created: boolean; view: ShipmentView }> {
     const { repo, provider, clock } = this.deps;
     const existing = repo.findShipmentByCode(input.carrier, input.trackingCode);
-    if (existing) return { created: false, view: this.view(existing, { stale: false, error: null }) };
+    if (existing) {
+      try {
+        await provider.register(existing.tracking_code, existing.carrier);
+      } catch (error) {
+        if (!(error instanceof ProviderError)) throw error;
+        this.log({ event: "recadastro_falhou", shipment_id: existing.id, kind: error.kind, message: error.message });
+        return { created: false, view: this.finish(existing, { stale: true, error: error.kind }) };
+      }
+      return { created: false, view: this.finish(existing, await this.sync(existing)) };
+    }
     if (!provider.supportsCarrier(input.carrier)) throw new UnsupportedCarrierError(input.carrier);
 
     await provider.register(input.trackingCode, input.carrier);
@@ -110,6 +123,15 @@ export class TrackingService {
     if (!shipment) return null;
     const outcome = await this.sync(shipment);
     return this.finish(shipment, outcome);
+  }
+
+  /** Busca pelo código de rastreio e sincroniza cada encomenda encontrada. */
+  async findByCode(trackingCode: string, carrier?: string): Promise<ShipmentView[]> {
+    const views: ShipmentView[] = [];
+    for (const shipment of this.deps.repo.findShipmentsByCode(trackingCode, carrier)) {
+      views.push(this.finish(shipment, await this.sync(shipment)));
+    }
+    return views;
   }
 
   /** Sincroniza as encomendas em aberto e avisa as que passaram do limite. */

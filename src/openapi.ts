@@ -96,6 +96,29 @@ export const openApiDocument = {
       },
     },
     "/v1/shipments": {
+      get: {
+        tags: ["Encomendas"],
+        summary: "Buscar pelo código de rastreio",
+        description:
+          "Busca as encomendas com este código (uma por transportadora), sincroniza cada uma com o agregador e devolve o estado. Lista vazia quando o código não foi cadastrado.",
+        parameters: [
+          { name: "tracking_code", in: "query", required: true, schema: { type: "string" }, example: "QB000000002BR" },
+          { name: "carrier", in: "query", required: false, schema: { type: "string", enum: ["correios", "jadlog", "loggi"] } },
+        ],
+        responses: {
+          "200": {
+            description: "Encomendas encontradas",
+            content: {
+              "application/json": { schema: { $ref: "#/components/schemas/ShipmentList" }, example: { shipments: [shipmentExample] } },
+            },
+          },
+          "400": errorResponse("Parâmetro ausente ou não aceito", {
+            code: "consulta_invalida",
+            message: "Parâmetro não aceito.",
+            field: "codigo",
+          }),
+        },
+      },
       post: {
         tags: ["Encomendas"],
         summary: "Cadastrar código de rastreio",
@@ -127,7 +150,8 @@ export const openApiDocument = {
             content: { "application/json": { schema: { $ref: "#/components/schemas/Shipment" }, example: shipmentExample } },
           },
           "200": {
-            description: "Código já cadastrado; devolve a encomenda existente",
+            description:
+              "Código já cadastrado: devolve a encomenda existente, sem duplicar. O cadastro no agregador é refeito (idempotente) e a encomenda é sincronizada.",
             content: { "application/json": { schema: { $ref: "#/components/schemas/Shipment" }, example: shipmentExample } },
           },
           "400": errorResponse("JSON malformado ou campo inválido", {
@@ -155,14 +179,24 @@ export const openApiDocument = {
         description:
           "Sincroniza com o agregador, grava só os eventos novos e devolve o estado. Se o agregador falhar, devolve 200 com o estado guardado, `stale: true` e `sync_error`.",
         parameters: [
-          { name: "id", in: "path", required: true, description: "Id devolvido no cadastro", schema: { type: "string" } },
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            description: "Id devolvido no cadastro (shp_...). Para buscar pelo código de rastreio, use GET /v1/shipments?tracking_code=...",
+            schema: { type: "string" },
+          },
         ],
         responses: {
           "200": {
             description: "Estado da encomenda",
             content: { "application/json": { schema: { $ref: "#/components/schemas/Shipment" }, example: shipmentExample } },
           },
-          "404": errorResponse("Encomenda inexistente", { code: "encomenda_nao_encontrada", message: "Não há encomenda com esse id." }),
+          "404": errorResponse("Encomenda inexistente", {
+            code: "encomenda_nao_encontrada",
+            message:
+              "Não há encomenda com esse id. Esta rota usa o id devolvido no cadastro (shp_...); para buscar pelo código de rastreio, use GET /v1/shipments?tracking_code=QB000000002BR.",
+          }),
         },
       },
     },
@@ -289,6 +323,11 @@ export const openApiDocument = {
           stale: { type: "boolean", description: "true quando o agregador falhou e o estado é o último guardado" },
           sync_error: nullable({ type: "string", enum: ["nao_encontrado", "indisponivel", "resposta_invalida", "rejeitado", null] }),
         },
+      },
+      ShipmentList: {
+        type: "object",
+        required: ["shipments"],
+        properties: { shipments: { type: "array", items: { $ref: "#/components/schemas/Shipment" } } },
       },
       Alert: {
         type: "object",

@@ -106,6 +106,27 @@ describe("API", () => {
     expect((await app.request("/v1/shipments/shp_nao_existe")).status).toBe(404);
   });
 
+  it("consultar pelo código de rastreio na rota do id dá 404 explicando qual rota usar", async () => {
+    const res = await app.request(`/v1/shipments/${CODE}`);
+    expect(res.status).toBe(404);
+    expect((await res.json()).error.message).toContain(`GET /v1/shipments?tracking_code=${CODE}`);
+  });
+
+  it("busca pelo código de rastreio, em qualquer caixa, com ou sem transportadora", async () => {
+    const { id } = await (await post({ tracking_code: CODE, carrier: "correios" })).json();
+    const found = await (await app.request(`/v1/shipments?tracking_code=${CODE.toLowerCase()}`)).json();
+    expect(found.shipments.map((s: { id: string }) => s.id)).toEqual([id]);
+    const byCarrier = await (await app.request(`/v1/shipments?tracking_code=${CODE}&carrier=jadlog`)).json();
+    expect(byCarrier).toEqual({ shipments: [] });
+  });
+
+  it("busca sem código ou com parâmetro desconhecido dá 400", async () => {
+    expect((await app.request("/v1/shipments")).status).toBe(400);
+    const res = await app.request(`/v1/shipments?tracking_code=${CODE}&codigo=1`);
+    expect(res.status).toBe(400);
+    expect((await res.json()).error.field).toBe("codigo");
+  });
+
   it("lista alertas", async () => {
     const res = await app.request("/v1/alerts");
     expect(res.status).toBe(200);

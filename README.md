@@ -23,16 +23,7 @@ npm run dev               # http://127.0.0.1:3004
 
 Com o serviço no ar, a documentação interativa fica em **http://127.0.0.1:3004/docs** (Scalar). Ela lista todos os endpoints com campos, exemplos e erros, e permite mandar requisições pelo navegador; os exemplos do cadastro já trazem os quatro cenários abaixo. A especificação OpenAPI 3.1 fica em `/openapi.json`, e `test/openapi.test.ts` falha se ela divergir das rotas ou das respostas reais.
 
-Pelo terminal:
-
-```bash
-curl -s -X POST localhost:3004/v1/shipments \
-  -H 'content-type: application/json' \
-  -d '{"tracking_code":"QB000000002BR","carrier":"correios","reference":"campanha-42/criador-7"}'
-
-curl -s localhost:3004/v1/shipments/<id>
-curl -s localhost:3004/v1/alerts
-```
+### Consultar os cenários prontos
 
 O agregador fictício traz quatro cenários, escolhidos pelo código (`mock-aggregator/scenarios.ts`):
 
@@ -43,7 +34,61 @@ O agregador fictício traz quatro cenários, escolhidos pelo código (`mock-aggr
 | `QB000000003BR` | Parado em trânsito há semanas: gera aviso de atraso |
 | `QB000000004BR` | Devolvido: o texto diz "entregue", mas é ao remetente |
 
+Primeiro cadastre o código. Depois, consulte pelo `id` devolvido ou pelo próprio código:
+
+```bash
+curl -s -X POST localhost:3004/v1/shipments \
+  -H 'content-type: application/json' \
+  -d '{"tracking_code":"QB000000002BR","carrier":"correios"}' | jq
+
+curl -s "localhost:3004/v1/shipments?tracking_code=QB000000002BR" | jq   # pelo código
+curl -s localhost:3004/v1/shipments/shp_...  | jq                         # pelo id
+curl -s localhost:3004/v1/alerts | jq
+```
+
 As datas dos cenários são fixas (setembro e outubro de 2026). Com o relógio do sistema, o atraso depende de quando você roda.
+
+### Inserir eventos e consultar
+
+Para simular a transportadora atualizando o rastreio, o agregador fictício aceita eventos em `POST /trackings/{transportadora}/{código}/checkpoints`. Essa rota só existe no agregador fictício; na API do serviço, os eventos sempre vêm do agregador.
+
+```bash
+# 1. cadastrar um código novo na API (sem eventos ainda: status null)
+curl -s -X POST localhost:3004/v1/shipments -H 'content-type: application/json' \
+  -d '{"tracking_code":"AB123456789BR","carrier":"correios"}' | jq '{id, status}'
+
+# 2. a "transportadora" posta o pacote
+curl -s -X POST localhost:3005/trackings/correios/AB123456789BR/checkpoints \
+  -H 'content-type: application/json' \
+  -d '{"courier_status":"PO","checkpoint_time":"2026-10-10 09:00:00","location":"AGF Pinheiros - SP"}'
+
+# 3. consultar: status "postado"
+curl -s "localhost:3004/v1/shipments?tracking_code=AB123456789BR" | jq '.shipments[0] | {status, delay: .delay.summary}'
+
+# 4. vários eventos de uma vez: saiu para entrega, um "em trânsito" antigo que chega
+#    atrasado e um status que a transportadora inventou
+curl -s -X POST localhost:3005/trackings/correios/AB123456789BR/checkpoints \
+  -H 'content-type: application/json' \
+  -d '[{"courier_status":"OEC","checkpoint_time":"2026-10-12 08:00:00"},
+       {"courier_status":"RO","checkpoint_time":"2026-10-11 07:00:00"},
+       {"courier_status":"ENTREGA-PREVISTA","checkpoint_time":"2026-10-12 08:30:00"}]'
+
+# 5. consultar: continua "saiu_para_entrega", e o inventado fica com status null
+curl -s "localhost:3004/v1/shipments?tracking_code=AB123456789BR" | jq '.shipments[0] | {status, unmapped_events, history: [.history[] | {raw_status, status}]}'
+
+# 6. entrega, e consulta final: "entregue", com o tempo de trânsito
+curl -s -X POST localhost:3005/trackings/correios/AB123456789BR/checkpoints \
+  -H 'content-type: application/json' -d '{"courier_status":"BDE","checkpoint_time":"2026-10-12 11:00:00"}'
+curl -s "localhost:3004/v1/shipments?tracking_code=AB123456789BR" | jq '.shipments[0] | {status, delivered_at, delay: .delay.summary}'
+```
+
+Cada checkpoint aceita:
+
+- `courier_status`: obrigatório, é o código da transportadora (veja a tabela de tradução abaixo);
+- `checkpoint_time`: `AAAA-MM-DD HH:MM:SS`, no horário de Brasília salvo outro `checkpoint_tz`. Sem ele, vale o horário atual;
+- `checkpoint_tz`, `message`, `location` e `checkpoint_id`: opcionais.
+
+**Atenção:** o agregador fictício guarda tudo só na memória, e a API guarda num arquivo SQLite (`data/`). Se você reiniciar o agregador, ele esquece os códigos, e a consulta passa a voltar `stale: true` com `sync_error: "nao_encontrado"`. Para resolver, cadastre o código de novo (o POST refaz o cadastro no agregador sem duplicar nada) ou apague a pasta `data/` para começar do zero.
 
 ### Configuração
 
@@ -61,8 +106,9 @@ As datas dos cenários são fixas (setembro e outubro de 2026). Com o relógio d
 | Rota | Faz |
 | --- | --- |
 | `GET /health` | Saúde |
-| `POST /v1/shipments` | Cadastra no agregador e grava. Devolve 201; o mesmo código e transportadora devolvem a encomenda existente com 200 |
-| `GET /v1/shipments/:id` | Sincroniza com o agregador, grava só eventos novos e devolve o estado |
+| `POST /v1/shipments` | Cadastra no agregador e grava. Devolve 201; o mesmo código e transportadora devolvem a encomenda existente com 200, sem duplicar, refazendo o cadastro no agregador e sincronizando |
+| `GET /v1/shipments/:id` | Sincroniza com o agregador, grava só eventos novos e devolve o estado. Usa o `id` do cadastro (`shp_...`) |
+| `GET /v1/shipments?tracking_code=…&carrier=…` | Busca pelo código de rastreio (`carrier` é opcional) e devolve `{ "shipments": [...] }` já sincronizadas |
 | `GET /v1/alerts` | Avisos de atraso, abertos e desfeitos |
 | `GET /docs` | Documentação interativa (Scalar) |
 | `GET /openapi.json` | Especificação OpenAPI 3.1 |

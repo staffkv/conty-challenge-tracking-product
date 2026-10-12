@@ -2,6 +2,19 @@ import { z } from "zod";
 
 export const MAX_LIMIT_DAYS = 90;
 
+export const lookupSchema = z.strictObject({
+  tracking_code: z
+    .string()
+    .trim()
+    .min(1, "informe o código de rastreio")
+    .transform((code) => code.toUpperCase()),
+  carrier: z
+    .string()
+    .trim()
+    .transform((carrier) => carrier.toLowerCase())
+    .optional(),
+});
+
 export const registerSchema = z.strictObject({
   tracking_code: z
     .string()

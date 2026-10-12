@@ -19,6 +19,9 @@ export class MockAggregator {
   private readonly failures = new Map<string, number[]>();
   private delayMs = 0;
   private offline = false;
+  private manualSeq = 0;
+  /** Relógio do agregador; só é usado para preencher o horário de eventos inseridos sem horário. */
+  now: () => Date = () => new Date();
   /** Chamada a cada cadastro novo; a demonstração usa para carregar cenários. */
   onRegister: (courier: string, number: string) => unknown[] = () => [];
 
@@ -51,6 +54,36 @@ export class MockAggregator {
       if (!checkpoints) return c.json({ error: { code: "tracking_not_found" } }, 404);
       return c.json({ data: { tracking_number: number, courier_code: courier, checkpoints } });
     });
+
+    // Simula a transportadora atualizando o rastreio. Aceita um checkpoint ou uma lista.
+    // Só courier_status é obrigatório; o resto ganha valor padrão. O horário não é
+    // validado aqui, para dar para testar como o serviço lida com horário ilegível.
+    this.app.post("/trackings/:courier/:number/checkpoints", async (c) => {
+      const { courier, number } = c.req.param();
+      const key = `${courier}:${number}`;
+      if (!this.trackings.has(key)) {
+        return c.json({ error: { code: "tracking_not_found", message: "Cadastre o código antes (POST /v1/shipments na API)." } }, 404);
+      }
+      const body = await c.req.json().catch(() => undefined);
+      const items: unknown[] = Array.isArray(body) ? body : [body];
+      const checkpoints: MockCheckpoint[] = [];
+      for (const item of items) {
+        const cp = item as Partial<MockCheckpoint> | null | undefined;
+        if (typeof cp?.courier_status !== "string" || cp.courier_status === "") {
+          return c.json({ error: { code: "invalid_request", message: "Cada checkpoint precisa de courier_status (texto)." } }, 400);
+        }
+        checkpoints.push({
+          checkpoint_id: cp.checkpoint_id ?? `cp_manual_${++this.manualSeq}`,
+          checkpoint_time: cp.checkpoint_time ?? brasiliaLocal(this.now()),
+          checkpoint_tz: cp.checkpoint_time === undefined ? "-03:00" : (cp.checkpoint_tz ?? null),
+          courier_status: cp.courier_status,
+          message: cp.message ?? cp.courier_status,
+          location: cp.location ?? null,
+        });
+      }
+      this.push(courier, number, ...checkpoints);
+      return c.json({ data: { added: checkpoints, total: this.trackings.get(key)!.length } }, 201);
+    });
   }
 
   /** Acrescenta checkpoints na ordem dada (pode ser fora de ordem ou repetida). */
@@ -79,4 +112,9 @@ export class MockAggregator {
   private nextFailure(courier: string, number: string): number | undefined {
     return this.failures.get(`${courier}:${number}`)?.shift();
   }
+}
+
+/** "2026-10-12 10:30:00" no horário de Brasília (-03:00). */
+function brasiliaLocal(date: Date): string {
+  return new Date(date.getTime() - 3 * 3_600_000).toISOString().slice(0, 19).replace("T", " ");
 }

@@ -78,6 +78,8 @@ describe("documentação OpenAPI", () => {
       ["/health", "get", "200", await app.request("/health")],
       ["/v1/shipments/{id}", "get", "200", await app.request(`/v1/shipments/${id}`)],
       ["/v1/alerts", "get", "200", await app.request("/v1/alerts")],
+      ["/v1/shipments", "get", "200", await app.request("/v1/shipments?tracking_code=QB123456789BR")],
+      ["/v1/shipments", "get", "400", await app.request("/v1/shipments")],
       ["/v1/shipments/{id}", "get", "404", await app.request("/v1/shipments/nao-existe")],
       [
         "/v1/shipments",

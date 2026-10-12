@@ -4,7 +4,7 @@ import { bodyLimit } from "hono/body-limit";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { ProviderError } from "./domain/types.ts";
 import { openApiDocument } from "./openapi.ts";
-import { registerSchema } from "./schema.ts";
+import { lookupSchema, registerSchema } from "./schema.ts";
 import { UnsupportedCarrierError, type TrackingService } from "./tracking/service.ts";
 
 function fail(c: Context, status: ContentfulStatusCode, code: string, message: string, field?: string) {
@@ -56,9 +56,26 @@ export function createApp(service: TrackingService): Hono {
     },
   );
 
+  app.get("/v1/shipments", async (c) => {
+    const parsed = lookupSchema.safeParse(c.req.query());
+    if (!parsed.success) {
+      const issue = parsed.error.issues[0]!;
+      const field = issue.code === "unrecognized_keys" ? issue.keys.join(", ") : issue.path.join(".") || undefined;
+      return fail(c, 400, "consulta_invalida", issue.code === "unrecognized_keys" ? "Parâmetro não aceito." : issue.message, field);
+    }
+    const shipments = await service.findByCode(parsed.data.tracking_code, parsed.data.carrier);
+    return c.json({ shipments });
+  });
+
   app.get("/v1/shipments/:id", async (c) => {
-    const view = await service.refresh(c.req.param("id"));
-    if (!view) return fail(c, 404, "encomenda_nao_encontrada", "Não há encomenda com esse id.");
+    const id = c.req.param("id");
+    const view = await service.refresh(id);
+    if (!view) {
+      const hint = id.startsWith("shp_")
+        ? "Não há encomenda com esse id."
+        : `Não há encomenda com esse id. Esta rota usa o id devolvido no cadastro (shp_...); para buscar pelo código de rastreio, use GET /v1/shipments?tracking_code=${encodeURIComponent(id)}.`;
+      return fail(c, 404, "encomenda_nao_encontrada", hint);
+    }
     return c.json(view);
   });
 

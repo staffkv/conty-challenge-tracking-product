@@ -60,6 +60,12 @@ export class Repository {
       | undefined;
   }
 
+  /** Mesmo código em transportadoras diferentes são encomendas diferentes. */
+  findShipmentsByCode(trackingCode: string, carrier?: string): Shipment[] {
+    if (carrier) return this.db.prepare("SELECT * FROM shipments WHERE tracking_code = ? AND carrier = ? ORDER BY created_at, id").all(trackingCode, carrier) as Shipment[];
+    return this.db.prepare("SELECT * FROM shipments WHERE tracking_code = ? ORDER BY created_at, id").all(trackingCode) as Shipment[];
+  }
+
   /** Devolve false se o par (transportadora, código) já existia. */
   insertShipment(s: Shipment): boolean {
     const result = this.db
