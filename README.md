@@ -21,18 +21,20 @@ npm run mock-aggregator   # http://127.0.0.1:3005
 npm run dev               # http://127.0.0.1:3004
 ```
 
-Com o serviço no ar, a documentação interativa fica em **http://127.0.0.1:3004/docs** (Scalar). Ela lista todos os endpoints com campos, exemplos e erros, e permite mandar requisições pelo navegador; os exemplos do cadastro já trazem os quatro cenários abaixo. A especificação OpenAPI 3.1 fica em `/openapi.json`, e `test/openapi.test.ts` falha se ela divergir das rotas ou das respostas reais.
+Com o serviço no ar, a documentação interativa fica em [**http://127.0.0.1:3004/docs**](http://127.0.0.1:3004/docs) (Scalar). Ela lista todos os endpoints com campos, exemplos e erros, e permite mandar requisições pelo navegador; os exemplos do cadastro já trazem os quatro cenários abaixo. A especificação OpenAPI 3.1 fica em `/openapi.json`, e `test/openapi.test.ts` falha se ela divergir das rotas ou das respostas reais.
 
 ### Consultar os cenários prontos
 
 O agregador fictício traz quatro cenários, escolhidos pelo código (`mock-aggregator/scenarios.ts`):
 
-| Código | Cenário |
-| --- | --- |
-| `QB000000001BR` | Entrega normal, dentro do prazo |
+
+| Código          | Cenário                                                  |
+| --------------- | -------------------------------------------------------- |
+| `QB000000001BR` | Entrega normal, dentro do prazo                          |
 | `QB000000002BR` | Evento repetido, fora de ordem e com um status inventado |
-| `QB000000003BR` | Parado em trânsito há semanas: gera aviso de atraso |
-| `QB000000004BR` | Devolvido: o texto diz "entregue", mas é ao remetente |
+| `QB000000003BR` | Parado em trânsito há semanas: gera aviso de atraso      |
+| `QB000000004BR` | Devolvido: o texto diz "entregue", mas é ao remetente    |
+
 
 Primeiro cadastre o código. Depois, consulte pelo `id` devolvido ou pelo próprio código:
 
@@ -92,26 +94,30 @@ Cada checkpoint aceita:
 
 ### Configuração
 
-| Variável | Padrão | Uso |
-| --- | --- | --- |
-| `PORT` | `3004` | Porta da API |
-| `DB_PATH` | `data/rastreio.sqlite` | Banco SQLite |
-| `AGGREGATOR_URL` | `http://127.0.0.1:3005` | URL do agregador |
-| `AGGREGATOR_TIMEOUT_MS` | `5000` | Timeout de cada chamada ao agregador |
-| `TRANSIT_LIMIT_DAYS` | `7` | Limite padrão de trânsito, em dias corridos |
-| `DELAY_CHECK_INTERVAL_MS` | `900000` | Intervalo do monitor de atraso |
+
+| Variável                  | Padrão                  | Uso                                         |
+| ------------------------- | ----------------------- | ------------------------------------------- |
+| `PORT`                    | `3004`                  | Porta da API                                |
+| `DB_PATH`                 | `data/rastreio.sqlite`  | Banco SQLite                                |
+| `AGGREGATOR_URL`          | `http://127.0.0.1:3005` | URL do agregador                            |
+| `AGGREGATOR_TIMEOUT_MS`   | `5000`                  | Timeout de cada chamada ao agregador        |
+| `TRANSIT_LIMIT_DAYS`      | `7`                     | Limite padrão de trânsito, em dias corridos |
+| `DELAY_CHECK_INTERVAL_MS` | `900000`                | Intervalo do monitor de atraso              |
+
 
 ## Contrato da API
 
-| Rota | Faz |
-| --- | --- |
-| `GET /health` | Saúde |
-| `POST /v1/shipments` | Cadastra no agregador e grava. Devolve 201; o mesmo código e transportadora devolvem a encomenda existente com 200, sem duplicar, refazendo o cadastro no agregador e sincronizando |
-| `GET /v1/shipments/:id` | Sincroniza com o agregador, grava só eventos novos e devolve o estado. Usa o `id` do cadastro (`shp_...`) |
-| `GET /v1/shipments?tracking_code=…&carrier=…` | Busca pelo código de rastreio (`carrier` é opcional) e devolve `{ "shipments": [...] }` já sincronizadas |
-| `GET /v1/alerts` | Avisos de atraso, abertos e desfeitos |
-| `GET /docs` | Documentação interativa (Scalar) |
-| `GET /openapi.json` | Especificação OpenAPI 3.1 |
+
+| Rota                                          | Faz                                                                                                                                                                                 |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /health`                                 | Saúde                                                                                                                                                                               |
+| `POST /v1/shipments`                          | Cadastra no agregador e grava. Devolve 201; o mesmo código e transportadora devolvem a encomenda existente com 200, sem duplicar, refazendo o cadastro no agregador e sincronizando |
+| `GET /v1/shipments/:id`                       | Sincroniza com o agregador, grava só eventos novos e devolve o estado. Usa o `id` do cadastro (`shp_...`)                                                                           |
+| `GET /v1/shipments?tracking_code=…&carrier=…` | Busca pelo código de rastreio (`carrier` é opcional) e devolve `{ "shipments": [...] }` já sincronizadas                                                                            |
+| `GET /v1/alerts`                              | Avisos de atraso, abertos e desfeitos                                                                                                                                               |
+| `GET /docs`                                   | Documentação interativa (Scalar)                                                                                                                                                    |
+| `GET /openapi.json`                           | Especificação OpenAPI 3.1                                                                                                                                                           |
+
 
 Corpo do cadastro:
 
@@ -127,13 +133,15 @@ Corpo do cadastro:
 
 Erros saem como `{ "error": { "code", "message", "field"? } }`:
 
-| HTTP | Quando |
-| --- | --- |
-| 400 | JSON malformado ou campo inválido; `field` diz qual |
-| 404 | Encomenda inexistente |
-| 413 | Corpo acima de 16 KiB |
-| 422 | Transportadora não suportada |
-| 502 | Agregador falhou no cadastro; nada é gravado |
+
+| HTTP | Quando                                              |
+| ---- | --------------------------------------------------- |
+| 400  | JSON malformado ou campo inválido; `field` diz qual |
+| 404  | Encomenda inexistente                               |
+| 413  | Corpo acima de 16 KiB                               |
+| 422  | Transportadora não suportada                        |
+| 502  | Agregador falhou no cadastro; nada é gravado        |
+
 
 Se o agregador falhar na consulta, a resposta continua 200 com o estado guardado, `stale: true` e `sync_error` (`indisponivel`, `nao_encontrado` ou `resposta_invalida`). A falha não apaga o que já se sabe.
 
@@ -145,13 +153,15 @@ Antes de qualquer evento reconhecido, `status` é `null` e `status_reason` expli
 
 A tradução fica no adaptador do agregador (`src/providers/rastreio-fake/status-map.ts`) e usa o **código exato** da transportadora, ignorando só caixa, acentos e espaços repetidos:
 
-| Status | Correios | Jadlog | Loggi |
-| --- | --- | --- | --- |
-| `postado` | `PO` | `EMISSAO` | `picked_up` |
-| `em_transito` | `RO`, `DO` | `TRANSFERENCIA` | `in_transit` |
-| `saiu_para_entrega` | `OEC` | `EM ROTA` | `out_for_delivery` |
-| `entregue` | `BDE` | `ENTREGUE` | `delivered` |
-| `excecao` | `BDI-ausente`, `BDE-remetente`, `FC-extravio` | `INSUCESSO`, `DEVOLVIDO` | `delivery_failed`, `returned_to_sender` |
+
+| Status              | Correios                                      | Jadlog                   | Loggi                                   |
+| ------------------- | --------------------------------------------- | ------------------------ | --------------------------------------- |
+| `postado`           | `PO`                                          | `EMISSAO`                | `picked_up`                             |
+| `em_transito`       | `RO`, `DO`                                    | `TRANSFERENCIA`          | `in_transit`                            |
+| `saiu_para_entrega` | `OEC`                                         | `EM ROTA`                | `out_for_delivery`                      |
+| `entregue`          | `BDE`                                         | `ENTREGUE`               | `delivered`                             |
+| `excecao`           | `BDI-ausente`, `BDE-remetente`, `FC-extravio` | `INSUCESSO`, `DEVOLVIDO` | `delivery_failed`, `returned_to_sender` |
+
 
 Os dialetos são fictícios, inspirados no estilo de cada transportadora.
 
@@ -175,6 +185,7 @@ O bloco abaixo é gerado por `npm run example -- --write-readme`, que passa o ce
 No payload há um `RO` repetido (com outro `checkpoint_id`), eventos fora de ordem e um código que a transportadora inventou (`RX9`, com o texto "aguardando confirmação de entrega"). Na resposta, o histórico tem cinco eventos em ordem cronológica, o status é `saiu_para_entrega` e o `RX9` aparece com `status: null`, sem virar entrega.
 
 <!-- exemplo:inicio -->
+
 Payload bruto do agregador (`GET /trackings/correios/QB000000002BR`):
 
 ```json
@@ -305,6 +316,7 @@ Resposta de `POST /v1/shipments` com o relógio parado em 03/10/2026 14:00 UTC:
   "sync_error": null
 }
 ```
+
 <!-- exemplo:fim -->
 
 ## Status desconhecido, eventos repetidos e fora de ordem
@@ -317,7 +329,7 @@ Mandar o desconhecido para `excecao` também evitaria o falso "entregue", mas ab
 
 1. qualquer `entregue` encerra;
 2. se o evento reconhecido mais recente (pelo horário da transportadora) for `excecao`, vale a exceção;
-3. senão, vale o maior progresso já visto: `postado` < `em_transito` < `saiu_para_entrega` < `entregue`.
+3. senão, vale o maior progresso já visto: `postado` &lt; `em_transito` &lt; `saiu_para_entrega` &lt; `entregue`.
 
 O resultado não depende da ordem de chegada. Um teste confirma o mesmo status e o mesmo atraso nas 720 ordens possíveis de um histórico de 6 eventos. A exceção aparece enquanto for o fato mais recente e some quando chega progresso posterior.
 
@@ -383,12 +395,24 @@ Ferramenta: Claude Code, modelo Claude Opus 5.5.
 - **Correções que vieram dessa verificação:**
   - faltava teste para evento mais novo com progresso menor;
   - o aviso dizia "em trânsito" para pacote devolvido;
-  - o arredondamento mostrava "72 h, acima do limite de 72 h";
-  - prazos e tempos apareciam em horas ("263,8 h"); passaram a ser mostrados em dias, horas e minutos.
+  - o arredondamento mostrava "72 h, acima do limite de 72 h".
+- **Mudanças pedidas por mim e implementadas pela IA:** listadas na seção abaixo.
+- **Redação da seção "O que eu revisei":** feita pela IA a meu pedido, a partir do que eu fiz e confirmei durante o desenvolvimento.
 
 ### O que eu revisei
 
-<!-- pendente: escrito pela pessoa candidata -->
+Revisei o trabalho da IA ao longo de todo o desenvolvimento:
+
+- **Plano:** li o plano de implementação, conferi as decisões contra o enunciado e autorizei o início da implementação.
+- **Código, testes e README:** revisei o código, os testes e este README antes da entrega.
+- **Teste manual:** subi o agregador fictício e a API e consultei os quatro cenários com `curl`: entrega no prazo; evento repetido, fora de ordem e com status inventado; pacote parado em trânsito; e devolução ao remetente. Conferi que o histórico não duplica ao consultar de novo e que o status inventado não vira `entregue`.
+- **Problemas que encontrei testando, corrigidos pela IA:**
+  - consultar pelo código de rastreio na rota do `id` devolvia "não existe", o que levou à busca `GET /v1/shipments?tracking_code=`;
+  - depois de reiniciar o agregador fictício, as consultas não traziam nada, o que levou o cadastro repetido a refazer o cadastro no agregador.
+- **Mudanças que pedi:**
+  - prazos e tempos em dias, em vez de horas ("10 dias e 23 h", não "263,8 h"), com uma frase pronta para quem acompanha a campanha;
+  - documentação interativa da API com Scalar em `/docs`;
+  - uma forma de inserir eventos no agregador fictício para testar à mão o fluxo de inserir e depois consultar.
 
 ### Verificações automáticas
 

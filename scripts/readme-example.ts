@@ -27,8 +27,10 @@ export async function renderExampleBlock(): Promise<string> {
   const { view } = await service.register({ trackingCode: CODE, carrier: "correios", reference: "campanha-42/criador-7" });
   const raw = await (await mock.fetch(`http://agregador.exemplo/trackings/correios/${CODE}`)).json();
 
+  // Linhas em branco junto aos marcadores, como os formatadores de Markdown deixam.
   return [
     START,
+    "",
     "Payload bruto do agregador (`GET /trackings/correios/QB000000002BR`):",
     "",
     "```json",
@@ -40,6 +42,7 @@ export async function renderExampleBlock(): Promise<string> {
     "```json",
     JSON.stringify(view, null, 2),
     "```",
+    "",
     END,
   ].join("\n");
 }
